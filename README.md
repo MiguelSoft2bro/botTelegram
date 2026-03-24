@@ -28,6 +28,8 @@ The installer will:
 
 ## Manual Install
 
+> ⚠️ **Nota**: Si usaste `./install.sh`, esto ya está hecho. Esta sección es solo si prefieres instalar manualmente.
+
 ### 1. Install dependencies
 
 ```bash
