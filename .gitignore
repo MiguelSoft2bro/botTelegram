@@ -1,0 +1,31 @@
+# Secrets
+.env
+
+# Runtime IPC files
+bridge/inbox.json
+bridge/outbox.json
+bridge/session.json
+bridge/state.json
+
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# Tests
+.pytest_cache/
+.coverage
+htmlcov/
+
+# OS
+.DS_Store
+
+# Logs
+*.log
