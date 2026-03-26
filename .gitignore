@@ -6,6 +6,7 @@ bridge/inbox.json
 bridge/outbox.json
 bridge/session.json
 bridge/state.json
+bridge/uploads/
 
 # Python artifacts
 __pycache__/

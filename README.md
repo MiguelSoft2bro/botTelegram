@@ -9,11 +9,13 @@ Control OpenCode from your phone via Telegram. Send messages, receive responses,
 - Push notifications when OpenCode responds
 - Multiple OpenCode sessions with dynamic ports
 - Secure: only allowed user IDs can interact
+- Send Telegram voice notes – they get transcribed with Whisper and forwarded to OpenCode
+- Share Telegram photos – images are stored locally and announced to the OpenCode session
 
 ## Quick Install
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/MiguelSoft2bro/botTelegram.git
 cd bot
 chmod +x install.sh
 ./install.sh
@@ -63,22 +65,64 @@ cp .env.example .env
 # Edit .env with your values
 ```
 
-### 5. Add shell function
+Optional:
 
-Add to your `~/.zshrc` or `~/.bashrc`:
+- `WHISPER_MODEL=base` (o el modelo de Whisper que prefieras) para controlar la calidad/velocidad de la transcripción.
+
+### 5. Add shell function + watchdog
+
+Add this block to tu `~/.zshrc` (ajusta las rutas si moviste el repo):
 
 ```bash
+# OpenCode Telegram Bridge helpers
+BRIDGE_BASE="$HOME/Desktop/TRABAJOS/phyton/bot"
+BRIDGE_SCRIPT="$BRIDGE_BASE/bridge.py"
+BRIDGE_PATTERN="bridge.py"
+BRIDGE_WATCH="$BRIDGE_BASE/bridge_watch.sh"
+
+start_bridge_if_needed() {
+    if ! pgrep -f "$BRIDGE_PATTERN" >/dev/null; then
+        (
+            cd "$BRIDGE_BASE" &&
+            nohup python3 "$BRIDGE_SCRIPT" >/tmp/bridge.log 2>&1 &
+        )
+    fi
+}
+
+ensure_bridge_watchdog() {
+    if [ -x "$BRIDGE_WATCH" ] && ! pgrep -f "$BRIDGE_WATCH" >/dev/null; then
+        nohup zsh "$BRIDGE_WATCH" >/tmp/bridge-watch.log 2>&1 &
+    fi
+}
+
+cleanup_bridge_if_needed() {
+    if ! pgrep -f "opencode --port" >/dev/null && pgrep -f "$BRIDGE_PATTERN" >/dev/null; then
+        pkill -f "$BRIDGE_PATTERN"
+    fi
+}
+
 opencode() {
     local port=4096
     while lsof -i :$port &>/dev/null; do
         ((port++))
     done
+
+    start_bridge_if_needed
+    ensure_bridge_watchdog
+
     echo "OpenCode starting on port $port"
     command opencode --port $port "$@"
+
+    cleanup_bridge_if_needed
 }
 ```
 
-Then: `source ~/.zshrc`
+Then:
+
+```bash
+chmod +x $HOME/Desktop/TRABAJOS/phyton/bot/bridge_watch.sh
+source ~/.zshrc
+```
 
 ## Usage
 
@@ -100,12 +144,25 @@ Or tell OpenCode: "arranca el bot"
 
 | Command | Description |
 |---------|-------------|
-| `/start` | Show status and help |
-| `/ports` | List active OpenCode instances (with connect buttons) |
+| `/start` | List active OpenCode instances (with connect buttons) |
 | `/connect <session_id>` | Connect to a session |
-| `/disconnect` | Disconnect from current session |
+| `/exit` | Disconnect from current session |
 | `/sessions` | List all sessions on connected port |
 | `/chatid` | Show current chat ID (for group setup) |
+
+### Voice Notes (Whisper)
+
+- Instala `ffmpeg` en tu sistema (requerido por Whisper) y asegúrate de correr `pip install -r requirements.txt` para tener `openai-whisper`.
+- Opcional: ajusta `WHISPER_MODEL` en tu `.env` si querés otro tamaño (tiny/base/small/etc.).
+- Envía una nota de voz o un audio: el bot la descarga, la transcribe con Whisper y la envía directo a OpenCode.
+- Si algo falla (modelo no instalado, audio vacío, etc.), el bot te avisa en el chat.
+
+### Images
+
+- Las fotos que envías por Telegram se guardan en `bridge/uploads/` con un nombre único.
+- El bot avisa a OpenCode de la ruta exacta, del tamaño y de la resolución. Desde la TUI puedes usar `Read` sobre esa ruta para inspeccionar la imagen.
+- Si añades un pie de foto, se incluye en el mensaje que llega a OpenCode.
+- Estos ficheros están gitignored para que no acaben en tu repo.
 
 ### Optional: Push Notifications Group
 
@@ -115,6 +172,17 @@ For reliable push notifications:
 2. Add your bot to the group
 3. Send `/chatid` in the group
 4. Add the ID to `.env` as `NOTIFICATION_GROUP_ID`
+
+## Automatic Bridge Lifecycle
+
+La instalación crea una función `opencode` y un watchdog `bridge_watch.sh` que se ocupan de arrancar y matar el bot automáticamente:
+
+1. **Cuando ejecutas `opencode`**: se elige el siguiente puerto libre (4096+) y, si no hay bridge activo, se lanza `bridge.py`. También se arranca (una sola vez) `bridge_watch.sh` en segundo plano.
+2. **Mientras haya sesiones**: el watchdog vigila que exista **solo un** `bridge.py`. Si el proceso muere, lo revive en segundos.
+3. **Cuando la última sesión se cierra con `/exit`**: en cuanto ya no queda ningún `opencode --port`, el watchdog mata el bridge y se queda dormido.
+4. **Tras reiniciar el equipo**: no queda nada corriendo. En cuanto vuelves a lanzar `opencode`, el ciclo arranca de nuevo (watchdog + bridge).
+
+Si prefieres configurarlo a mano, revisa el fichero `bridge_watch.sh` y copia la función `opencode` del instalador para tu `~/.zshrc`. Solo necesitas actualizar las rutas si moviste el proyecto.
 
 ## Architecture
 

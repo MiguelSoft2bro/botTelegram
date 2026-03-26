@@ -86,7 +86,7 @@ class TestSessionManagement:
         b.SESSION_PATH = tmp_path / "session.json"
         b.atomic_write(b.SESSION_PATH, dict(b.EMPTY_SESSION))
         
-        b.connect_session(chat_id=123, user_id=456, opencode_session_id="test-session-123")
+        b.connect_session(chat_id=123, user_id=456, opencode_session_id="test-session-123", port=4096)
         
         session = json.loads(b.SESSION_PATH.read_text())
         assert session["connected"] is True
@@ -98,7 +98,7 @@ class TestSessionManagement:
     def test_disconnect_session_clears_state(self, tmp_path):
         b = load_bridge(tmp_path)
         b.SESSION_PATH = tmp_path / "session.json"
-        b.connect_session(chat_id=123, user_id=456, opencode_session_id="session-xyz")
+        b.connect_session(chat_id=123, user_id=456, opencode_session_id="session-xyz", port=4096)
         
         b.disconnect_session()
         
@@ -110,7 +110,7 @@ class TestSessionManagement:
     def test_get_opencode_session_id_returns_id_when_connected(self, tmp_path):
         b = load_bridge(tmp_path)
         b.SESSION_PATH = tmp_path / "session.json"
-        b.connect_session(chat_id=100, user_id=200, opencode_session_id="my-session")
+        b.connect_session(chat_id=100, user_id=200, opencode_session_id="my-session", port=4096)
         
         assert b.get_opencode_session_id() == "my-session"
 
@@ -124,7 +124,7 @@ class TestSessionManagement:
     def test_get_active_chat_id_returns_id_when_connected(self, tmp_path):
         b = load_bridge(tmp_path)
         b.SESSION_PATH = tmp_path / "session.json"
-        b.connect_session(chat_id=777, user_id=888, opencode_session_id="sess")
+        b.connect_session(chat_id=777, user_id=888, opencode_session_id="sess", port=4096)
         
         assert b.get_active_chat_id() == 777
 

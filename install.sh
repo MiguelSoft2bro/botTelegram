@@ -171,7 +171,7 @@ done
 
 Respond with:
 - Bot is running
-- Tell them to open Telegram and use /ports to see active sessions
+- Tell them to open Telegram and use /start to see active sessions
 - Click a button to connect
 EOF
 
