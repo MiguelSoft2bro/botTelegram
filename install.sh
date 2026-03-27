@@ -249,18 +249,23 @@ menu() {
     tput civis 2>/dev/null || true
     while true; do
         show_header
-        echo "Usa ↑/↓ para navegar, Enter para seleccionar, q para salir"
+        echo "Usa ↑/↓ o números (1-${#options[@]}) para elegir opción. Enter ejecuta. Q para salir."
         echo ""
+        printf "+--------------------------------------+\n"
         for i in "${!options[@]}"; do
+            local idx=$((i+1))
+            local label="${idx}. ${options[i]}"
             if [ "$i" -eq "$selected" ]; then
-                printf "  > ${COLOR_HIGHLIGHT}%s${COLOR_RESET}\n" "${options[i]}"
+                printf "| ${COLOR_HIGHLIGHT}%-36s${COLOR_RESET} |\n" "$label"
             else
-                printf "    %s\n" "${options[i]}"
+                printf "| %-36s |\n" "$label"
             fi
         done
+        printf "+--------------------------------------+\n"
 
-        read -rsn1 key
+        read -rsn1 key 2>/dev/null || key=""
 
+        # Arrow keys
         if [[ $key == $'\x1b' ]]; then
             read -rsn2 -t 0.001 key2 || true
             case "$key2" in
@@ -277,6 +282,22 @@ menu() {
                 ;;
             $'\n')
                 run_action "$selected"
+                ;;
+            [1-9])
+                local choice=$((key-1))
+                if [ "$choice" -ge 0 ] && [ "$choice" -lt "${#options[@]}" ]; then
+                    run_action "$choice"
+                fi
+                ;;
+            *)
+                # fallback para entradas largas
+                read -rp $'\nEscribe número de opción: ' typed
+                if [[ "$typed" =~ ^[0-9]+$ ]]; then
+                    local idx=$((typed-1))
+                    if [ "$idx" -ge 0 ] && [ "$idx" -lt "${#options[@]}" ]; then
+                        run_action "$idx"
+                    fi
+                fi
                 ;;
         esac
     done
