@@ -34,6 +34,24 @@ pause() {
     read -rp "Pulsa Enter para volver al menú..." _
 }
 
+prompt_value() {
+    local label="$1"
+    local allow_empty="$2"
+    while true; do
+        read -rp "$label" value
+        if [ "$value" = "0" ]; then
+            echo "__BACK__"
+            return
+        fi
+        if [ -z "$value" ] && [ "$allow_empty" != "true" ]; then
+            echo "El valor no puede estar vacío. Introduce 0 para volver."
+        else
+            echo "$value"
+            return
+        fi
+    done
+}
+
 check_prereqs() {
     show_header
     echo "Comprobando requisitos básicos..."
@@ -73,6 +91,7 @@ install_dependencies() {
 configure_env() {
     show_header
     echo "Configuración de credenciales (.env)"
+    echo "Introduce 0 en cualquier campo para volver al menú."
     if [ -f "$PROJECT_DIR/.env" ]; then
         read -rp "Ya existe .env. ¿Quieres sobrescribirlo? [y/N]: " answer
         case "$answer" in
@@ -82,22 +101,21 @@ configure_env() {
     fi
 
     echo "Necesitas tu propio bot de Telegram (creado con @BotFather)."
-    read -rp "BOT_TOKEN: " bot_token
-    if [ -z "$bot_token" ]; then
-        echo "El token no puede estar vacío."; pause; return
-    fi
-    read -rp "Tu User ID (de @userinfobot): " user_id
-    if [ -z "$user_id" ]; then
-        echo "El User ID no puede estar vacío."; pause; return
-    fi
-    read -rp "ID de grupo para notificaciones (Enter para omitir): " group_id
-    read -rp "Modelo de Whisper [base]: " whisper_model
+    bot_token=$(prompt_value "BOT_TOKEN: " false)
+    [ "$bot_token" = "__BACK__" ] && return
+    user_id=$(prompt_value "Tu User ID (de @userinfobot): " false)
+    [ "$user_id" = "__BACK__" ] && return
+    group_id=$(prompt_value "ID de grupo para notificaciones (0 para omitir): " true)
+    [ "$group_id" = "__BACK__" ] && return
+    whisper_model=$(prompt_value "Modelo de Whisper [base]: " true)
+    [ "$whisper_model" = "__BACK__" ] && return
+    whisper_model=${whisper_model:-base}
 
     cat > "$PROJECT_DIR/.env" <<EOF
 BOT_TOKEN=$bot_token
 ALLOWED_USER_IDS=$user_id
 NOTIFICATION_GROUP_ID=${group_id:-0}
-WHISPER_MODEL=${whisper_model:-base}
+WHISPER_MODEL=${whisper_model}
 EOF
 
     echo "✅ Archivo .env generado"
@@ -107,6 +125,7 @@ EOF
 configure_shell_function() {
     show_header
     echo "Configurando la función opencode()..."
+    echo "Introduce 0 en cualquier confirmación para cancelar."
     local shell_config=""
     if [ -f "$HOME/.zshrc" ]; then
         shell_config="$HOME/.zshrc"
@@ -119,9 +138,12 @@ configure_shell_function() {
     fi
 
     if grep -q "OpenCode Telegram Bridge" "$shell_config"; then
-        echo "La función ya existe en $shell_config"
-        pause
-        return
+        read -rp "La función ya existe en $shell_config. ¿Reemplazar? [y/N]: " resp
+        case "$resp" in
+            0) return ;;
+            y|Y) ;;
+            *) echo "Manteniendo configuración actual"; pause; return ;;
+        esac
     fi
 
     cat >> "$shell_config" <<EOF
@@ -227,80 +249,34 @@ full_install() {
 
 run_action() {
     case "$1" in
-        0) full_install ;;
-        1) configure_env ;;
-        2) configure_shell_function ;;
-        3) install_skill ;;
-        4) install_dependencies ;;
-        5) show_header; echo "Saliendo..."; exit 0 ;;
+        1) full_install ;;
+        2) configure_env ;;
+        3) configure_shell_function ;;
+        4) install_skill ;;
+        5) install_dependencies ;;
+        6) show_header; echo "Saliendo..."; exit 0 ;;
+        *) echo "Opción inválida" ;;
     esac
 }
 
 menu() {
-    local options=(
-        "Instalación completa"
-        "Solo generar/actualizar .env"
-        "Solo configurar función opencode()"
-        "Instalar skill de OpenCode"
-        "Instalar dependencias"
-        "Salir"
-    )
-    local selected=0
-    tput civis 2>/dev/null || true
     while true; do
         show_header
-        echo "Usa ↑/↓ o números (1-${#options[@]}) para elegir opción. Enter ejecuta. Q para salir."
-        echo ""
-        printf "+--------------------------------------+\n"
-        for i in "${!options[@]}"; do
-            local idx=$((i+1))
-            local label="${idx}. ${options[i]}"
-            if [ "$i" -eq "$selected" ]; then
-                printf "| ${COLOR_HIGHLIGHT}%-36s${COLOR_RESET} |\n" "$label"
-            else
-                printf "| %-36s |\n" "$label"
-            fi
-        done
-        printf "+--------------------------------------+\n"
+        cat <<EOF
+1. Instalación completa
+2. Solo generar/actualizar .env
+3. Solo configurar función opencode()
+4. Instalar skill de OpenCode
+5. Instalar dependencias
+6. Salir
 
-        read -rsn1 key 2>/dev/null || key=""
-
-        # Arrow keys
-        if [[ $key == $'\x1b' ]]; then
-            read -rsn2 -t 0.001 key2 || true
-            case "$key2" in
-                "[A") selected=$(( (selected - 1 + ${#options[@]}) % ${#options[@]} )) ; continue ;;
-                "[B") selected=$(( (selected + 1) % ${#options[@]} )) ; continue ;;
-            esac
-        fi
-
-        case "$key" in
-            q|Q)
-                show_header
-                echo "Saliendo..."
-                exit 0
-                ;;
-            $'\n')
-                run_action "$selected"
-                ;;
-            [1-9])
-                local choice=$((key-1))
-                if [ "$choice" -ge 0 ] && [ "$choice" -lt "${#options[@]}" ]; then
-                    run_action "$choice"
-                fi
-                ;;
-            *)
-                # fallback para entradas largas
-                read -rp $'\nEscribe número de opción: ' typed
-                if [[ "$typed" =~ ^[0-9]+$ ]]; then
-                    local idx=$((typed-1))
-                    if [ "$idx" -ge 0 ] && [ "$idx" -lt "${#options[@]}" ]; then
-                        run_action "$idx"
-                    fi
-                fi
-                ;;
+Introduce el número de la opción (1-6) o Q para salir:
+EOF
+        read -rp "> " choice
+        case "$choice" in
+            q|Q) show_header; echo "Saliendo..."; exit 0 ;;
+            1|2|3|4|5|6) run_action "$choice" ;;
+            *) echo "Opción inválida"; sleep 1 ;;
         esac
     done
 }
-
-menu
