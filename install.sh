@@ -76,7 +76,8 @@ check_prereqs() {
     fi
     if [ "$missing" = true ]; then
         echo "Instala los binarios marcados y vuelve a ejecutar el instalador."
-        exit 1
+        pause
+        return 1
     fi
     pause
     return 0
@@ -320,7 +321,7 @@ EOF
         read -rp "> " choice
         case "$choice" in
             q|Q) show_header; echo "Saliendo..."; exit 0 ;;
-            1|2|3|4|5|6) run_action "$choice" ;;
+            1|2|3|4|5|6) run_action "$choice" || true ;;
             *) echo "Opción inválida"; sleep 1 ;;
         esac
     done
