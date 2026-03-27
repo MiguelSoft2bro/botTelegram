@@ -14,6 +14,8 @@ Control OpenCode from your phone via Telegram. Send messages, receive responses,
 
 ## Quick Install
 
+> Prerrequisitos: tener **OpenCode** instalado (el binario `opencode` debe funcionar), además de **FFmpeg** y la librería `openai-whisper` para procesar notas de voz.
+
 ```bash
 git clone https://github.com/MiguelSoft2bro/botTelegram.git
 cd bot
@@ -21,12 +23,18 @@ chmod +x install.sh
 ./install.sh
 ```
 
-The installer will:
-1. Install Python dependencies
-2. Guide you through creating a Telegram bot
-3. Configure your `.env` file
-4. Set up the `opencode` shell function for dynamic ports
-5. Install the OpenCode skill
+El script abre un instalador interactivo en terminal (con menú y prompts). Desde la opción “Instalación completa” realiza automáticamente:
+
+1. Verificación de requisitos.
+2. Instalación de dependencias de Python (`python-telegram-bot`, `aiohttp`, `openai-whisper`, etc.).
+3. Creación guiada del `.env` con tu `BOT_TOKEN`, `ALLOWED_USER_IDS`, `NOTIFICATION_GROUP_ID` y `WHISPER_MODEL`.
+4. Configuración de la función `opencode()` en tu `~/.zshrc`/`~/.bashrc`, que:
+   - Encuentra el siguiente puerto libre (4096+), arranca OpenCode ahí.
+   - Arranca `bridge.py` solo si no había uno activo.
+   - Mata el puente automáticamente cuando ya no quedan sesiones `opencode --port`.
+5. Instalación de la skill “telegram-bridge” en OpenCode para poder decir “arranca el bot”.
+
+Puedes usar el menú para ejecutar pasos individuales (p. ej., regenerar solo el `.env`). Al terminar, abre una terminal nueva (o ejecuta `source ~/.zshrc`) y lanza `opencode`: el puente se levantará y se apagará solo.
 
 ## Manual Install
 
@@ -69,37 +77,12 @@ Optional:
 
 - `WHISPER_MODEL=base` (o el modelo de Whisper que prefieras) para controlar la calidad/velocidad de la transcripción.
 
-### 5. Add shell function + watchdog
+### 5. Add auto-start shell function
 
-Add this block to tu `~/.zshrc` (ajusta las rutas si moviste el repo):
+Si no quieres usar el instalador, copia este bloque a tu `~/.zshrc` (ajusta `BRIDGE_HOME` con la ruta real del repo):
 
 ```bash
-# OpenCode Telegram Bridge helpers
-BRIDGE_BASE="$HOME/Desktop/TRABAJOS/phyton/bot"
-BRIDGE_SCRIPT="$BRIDGE_BASE/bridge.py"
-BRIDGE_PATTERN="bridge.py"
-BRIDGE_WATCH="$BRIDGE_BASE/bridge_watch.sh"
-
-start_bridge_if_needed() {
-    if ! pgrep -f "$BRIDGE_PATTERN" >/dev/null; then
-        (
-            cd "$BRIDGE_BASE" &&
-            nohup python3 "$BRIDGE_SCRIPT" >/tmp/bridge.log 2>&1 &
-        )
-    fi
-}
-
-ensure_bridge_watchdog() {
-    if [ -x "$BRIDGE_WATCH" ] && ! pgrep -f "$BRIDGE_WATCH" >/dev/null; then
-        nohup zsh "$BRIDGE_WATCH" >/tmp/bridge-watch.log 2>&1 &
-    fi
-}
-
-cleanup_bridge_if_needed() {
-    if ! pgrep -f "opencode --port" >/dev/null && pgrep -f "$BRIDGE_PATTERN" >/dev/null; then
-        pkill -f "$BRIDGE_PATTERN"
-    fi
-}
+BRIDGE_HOME="$HOME/Desktop/TRABAJOS/phyton/bot"   # cambia esto por la ruta real
 
 opencode() {
     local port=4096
@@ -107,22 +90,27 @@ opencode() {
         ((port++))
     done
 
-    start_bridge_if_needed
-    ensure_bridge_watchdog
+    if ! pgrep -f "python3.*bridge.py" >/dev/null; then
+        echo "Arrancando Telegram bridge..."
+        (
+            cd "$BRIDGE_HOME" &&
+            nohup python3 bridge.py >/tmp/bridge.log 2>&1 &
+        )
+    else
+        echo "Telegram bridge ya estaba activo"
+    fi
 
     echo "OpenCode starting on port $port"
     command opencode --port $port "$@"
 
-    cleanup_bridge_if_needed
+    if ! pgrep -f "opencode --port" >/dev/null && pgrep -f "python3.*bridge.py" >/dev/null; then
+        echo "Cerrando Telegram bridge (no quedan sesiones de OpenCode)"
+        pkill -f "python3.*bridge.py"
+    fi
 }
 ```
 
-Then:
-
-```bash
-chmod +x $HOME/Desktop/TRABAJOS/phyton/bot/bridge_watch.sh
-source ~/.zshrc
-```
+Después ejecuta `source ~/.zshrc` (o abre una terminal nueva) y listo.
 
 ## Usage
 
@@ -134,11 +122,13 @@ opencode  # Uses dynamic port (4096, 4097, etc.)
 
 ### Start the Telegram bot
 
+Normalmente no hace falta: la función `opencode` lo arranca sola. Si quieres iniciarlo manualmente:
+
 ```bash
 python3 bridge.py
 ```
 
-Or tell OpenCode: "arranca el bot"
+También puedes decirle a OpenCode: "arranca el bot".
 
 ### Telegram Commands
 
@@ -175,14 +165,12 @@ For reliable push notifications:
 
 ## Automatic Bridge Lifecycle
 
-La instalación crea una función `opencode` y un watchdog `bridge_watch.sh` que se ocupan de arrancar y matar el bot automáticamente:
+Con la función `opencode` instalada:
 
-1. **Cuando ejecutas `opencode`**: se elige el siguiente puerto libre (4096+) y, si no hay bridge activo, se lanza `bridge.py`. También se arranca (una sola vez) `bridge_watch.sh` en segundo plano.
-2. **Mientras haya sesiones**: el watchdog vigila que exista **solo un** `bridge.py`. Si el proceso muere, lo revive en segundos.
-3. **Cuando la última sesión se cierra con `/exit`**: en cuanto ya no queda ningún `opencode --port`, el watchdog mata el bridge y se queda dormido.
-4. **Tras reiniciar el equipo**: no queda nada corriendo. En cuanto vuelves a lanzar `opencode`, el ciclo arranca de nuevo (watchdog + bridge).
-
-Si prefieres configurarlo a mano, revisa el fichero `bridge_watch.sh` y copia la función `opencode` del instalador para tu `~/.zshrc`. Solo necesitas actualizar las rutas si moviste el proyecto.
+1. **Cada vez que ejecutas `opencode`**: busca un puerto libre, arranca OpenCode y se asegura de que `bridge.py` esté corriendo (sin duplicados).
+2. **Durante la sesión**: puedes ver/mandar mensajes, notas de voz y fotos; el puente se mantiene activo.
+3. **Cuando cierras la última sesión** (no quedan procesos `opencode --port`): la función mata el `bridge.py` automáticamente.
+4. **Tras reiniciar tu equipo**: no queda nada en memoria; solo tienes que volver a correr `opencode` y todo se levanta solo.
 
 ## Architecture
 
