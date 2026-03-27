@@ -18,7 +18,7 @@ Control OpenCode from your phone via Telegram. Send messages, receive responses,
 
 ```bash
 git clone https://github.com/MiguelSoft2bro/botTelegram.git
-cd bot
+cd botTelegram
 chmod +x install.sh
 ./install.sh
 ```
