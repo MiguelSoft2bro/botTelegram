@@ -6,12 +6,7 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 INSTALLER_VERSION="$(cat "$PROJECT_DIR/VERSION" 2>/dev/null || echo "dev")"
 PROMPT_VALUE=""
-ASCII_ART='  .;;,.   
- .cooodo:. 
-.:oxkxxkxo;.
- ;dKKKKKOd; 
-  ,okOkd,   
-    ...     '
+ASCII_ART="$(cat "$PROJECT_DIR/ascii-art.txt" 2>/dev/null || printf 'OpenCode Telegram Bridge')"
 COLOR_TITLE="\033[95m"
 COLOR_MENU="\033[96m"
 COLOR_HIGHLIGHT="\033[7m"
