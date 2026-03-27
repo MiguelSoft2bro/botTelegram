@@ -280,3 +280,5 @@ EOF
         esac
     done
 }
+
+menu
