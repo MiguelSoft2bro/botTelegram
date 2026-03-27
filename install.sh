@@ -4,6 +4,7 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
+INSTALLER_VERSION="$(cat "$PROJECT_DIR/VERSION" 2>/dev/null || echo "dev")"
 ASCII_ART='  .;;,.   
  .cooodo:. 
 .:oxkxxkxo;.
@@ -23,7 +24,7 @@ trap cleanup EXIT
 
 show_header() {
     clear
-    echo -e "${COLOR_TITLE}OpenCode Telegram Bridge Installer${COLOR_RESET}"
+    echo -e "${COLOR_TITLE}OpenCode Telegram Bridge Installer v${INSTALLER_VERSION}${COLOR_RESET}"
     echo "=========================================="
     echo "$ASCII_ART"
     echo ""
