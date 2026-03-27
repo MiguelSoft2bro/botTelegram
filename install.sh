@@ -126,6 +126,12 @@ configure_shell_function() {
     show_header
     echo "Configurando la función opencode()..."
     echo "Introduce 0 en cualquier confirmación para cancelar."
+    read -rp "¿Quieres añadir/configurar la función ahora? (y/N, 0 para volver): " desire
+    case "$desire" in
+        0|n|N|"") echo "Operación cancelada"; sleep 1; return ;;
+        y|Y) ;;
+        *) echo "Opción inválida, cancelando"; sleep 1; return ;;
+    esac
     local shell_config=""
     if [ -f "$HOME/.zshrc" ]; then
         shell_config="$HOME/.zshrc"
@@ -235,6 +241,15 @@ EOF
 }
 
 full_install() {
+    show_header
+    echo "Modo instalación completa"
+    read -rp "¿Quieres continuar? (y/N, 0 para cancelar): " confirm
+    case "$confirm" in
+        0|n|N|"" ) echo "Operación cancelada"; sleep 1; return ;;
+        y|Y ) ;;
+        * ) echo "Opción inválida, cancelando"; sleep 1; return ;;
+    esac
+
     check_prereqs
     install_dependencies
     configure_env
