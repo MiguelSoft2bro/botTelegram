@@ -5,6 +5,7 @@ set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 INSTALLER_VERSION="$(cat "$PROJECT_DIR/VERSION" 2>/dev/null || echo "dev")"
+PROMPT_VALUE=""
 ASCII_ART='  .;;,.   
  .cooodo:. 
 .:oxkxxkxo;.
@@ -41,14 +42,13 @@ prompt_value() {
     while true; do
         read -rp "$label" value
         if [ "$value" = "0" ]; then
-            echo "__BACK__"
-            return
+            return 1
         fi
         if [ -z "$value" ] && [ "$allow_empty" != "true" ]; then
             echo "El valor no puede estar vacío. Introduce 0 para volver."
         else
-            echo "$value"
-            return
+            PROMPT_VALUE="$value"
+            return 0
         fi
     done
 }
@@ -79,14 +79,22 @@ check_prereqs() {
         exit 1
     fi
     pause
+    return 0
 }
 
 install_dependencies() {
     show_header
+    read -rp "¿Instalar dependencias de Python ahora? (y/N, 0 para cancelar): " ans
+    case "$ans" in
+        0|n|N|"" ) echo "Operación cancelada"; sleep 1; return 1 ;;
+        y|Y ) ;;
+        * ) echo "Opción inválida, cancelando"; sleep 1; return 1 ;;
+    esac
     echo "Instalando dependencias de Python..."
     pip3 install -r "$PROJECT_DIR/requirements.txt"
     echo "✅ Dependencias instaladas"
     pause
+    return 0
 }
 
 configure_env() {
@@ -97,19 +105,30 @@ configure_env() {
         read -rp "Ya existe .env. ¿Quieres sobrescribirlo? [y/N]: " answer
         case "$answer" in
             y|Y) ;;
-            *) echo "Manteniendo .env actual"; pause; return ;;
+            *) echo "Manteniendo .env actual"; sleep 1; return 1 ;;
         esac
     fi
 
     echo "Necesitas tu propio bot de Telegram (creado con @BotFather)."
-    bot_token=$(prompt_value "BOT_TOKEN: " false)
-    [ "$bot_token" = "__BACK__" ] && return
-    user_id=$(prompt_value "Tu User ID (de @userinfobot): " false)
-    [ "$user_id" = "__BACK__" ] && return
-    group_id=$(prompt_value "ID de grupo para notificaciones (0 para omitir): " true)
-    [ "$group_id" = "__BACK__" ] && return
-    whisper_model=$(prompt_value "Modelo de Whisper [base]: " true)
-    [ "$whisper_model" = "__BACK__" ] && return
+    if ! prompt_value "BOT_TOKEN: " false; then
+        echo "Operación cancelada"; sleep 1; return 1
+    fi
+    local bot_token="$PROMPT_VALUE"
+
+    if ! prompt_value "Tu User ID (de @userinfobot): " false; then
+        echo "Operación cancelada"; sleep 1; return 1
+    fi
+    local user_id="$PROMPT_VALUE"
+
+    if ! prompt_value "ID de grupo para notificaciones (0 para omitir): " true; then
+        echo "Operación cancelada"; sleep 1; return 1
+    fi
+    local group_id="$PROMPT_VALUE"
+
+    if ! prompt_value "Modelo de Whisper [base]: " true; then
+        echo "Operación cancelada"; sleep 1; return 1
+    fi
+    local whisper_model="$PROMPT_VALUE"
     whisper_model=${whisper_model:-base}
 
     cat > "$PROJECT_DIR/.env" <<EOF
@@ -121,6 +140,7 @@ EOF
 
     echo "✅ Archivo .env generado"
     pause
+    return 0
 }
 
 configure_shell_function() {
@@ -187,10 +207,17 @@ EOF
     echo "✅ Función añadida a $shell_config"
     echo "Ejecuta: source $shell_config"
     pause
+    return 0
 }
 
 install_skill() {
     show_header
+    read -rp "¿Instalar/actualizar la skill de OpenCode? (y/N, 0 para cancelar): " resp
+    case "$resp" in
+        0|n|N|"" ) echo "Operación cancelada"; sleep 1; return 1 ;;
+        y|Y ) ;;
+        * ) echo "Opción inválida, cancelando"; sleep 1; return 1 ;;
+    esac
     echo "Instalando skill de OpenCode..."
     local skill_dir="$HOME/.config/opencode/skills/telegram-bridge"
     mkdir -p "$skill_dir"
@@ -239,6 +266,7 @@ EOF
 
     echo "✅ Skill instalada en $skill_dir"
     pause
+    return 0
 }
 
 full_install() {
@@ -246,21 +274,22 @@ full_install() {
     echo "Modo instalación completa"
     read -rp "¿Quieres continuar? (y/N, 0 para cancelar): " confirm
     case "$confirm" in
-        0|n|N|"" ) echo "Operación cancelada"; sleep 1; return ;;
+        0|n|N|"" ) echo "Operación cancelada"; sleep 1; return 1 ;;
         y|Y ) ;;
-        * ) echo "Opción inválida, cancelando"; sleep 1; return ;;
+        * ) echo "Opción inválida, cancelando"; sleep 1; return 1 ;;
     esac
 
-    check_prereqs
-    install_dependencies
-    configure_env
-    configure_shell_function
-    install_skill
+    check_prereqs || return 1
+    install_dependencies || return 1
+    configure_env || return 1
+    configure_shell_function || return 1
+    install_skill || return 1
     show_header
     echo "🎉 Instalación completada"
     echo "1. Abre una terminal nueva o ejecuta: source ~/.zshrc"
     echo "2. Lanza 'opencode' y el puente se iniciará solo"
     pause
+    return 0
 }
 
 run_action() {
