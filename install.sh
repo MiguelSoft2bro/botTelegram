@@ -235,6 +235,15 @@ EOF
 }
 
 full_install() {
+    show_header
+    echo "Modo instalación completa"
+    read -rp "¿Quieres continuar? (y/N, 0 para cancelar): " confirm
+    case "$confirm" in
+        0|n|N|"") echo "Operación cancelada"; sleep 1; return ;;
+        y|Y) ;;
+        *) echo "Opción inválida, cancelando"; sleep 1; return ;;
+    esac
+
     check_prereqs
     install_dependencies
     configure_env
